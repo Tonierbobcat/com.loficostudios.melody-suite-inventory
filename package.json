@@ -1,0 +1,13 @@
+{
+  "name": "com.loficostudios.inventory",
+  "version": "1.0.0",
+  "dependencies": {
+    "com.loficostudios.core": "1.0.0"
+  },
+  "displayName": "Inventory System",
+  "description": "A reusable inventory system for Unity.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Logan"
+  }
+}
