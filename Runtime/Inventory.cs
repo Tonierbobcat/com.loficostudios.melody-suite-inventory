@@ -1,8 +1,8 @@
 using System;
-using Core.Runtime;
+using MelodySuite.Core.Runtime;
 using UnityEngine;
 
-namespace Inventory.Runtime
+namespace MelodySuite.Inventory.Runtime
 {
     public abstract class Inventory<T, TI> : MonoBehaviour, IInventory<TI>
         where T : AbstractInventoryData<TI>

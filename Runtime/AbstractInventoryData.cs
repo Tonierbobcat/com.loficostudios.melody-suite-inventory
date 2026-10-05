@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace Inventory.Runtime
+namespace MelodySuite.Inventory.Runtime
 {
     public abstract class AbstractInventoryData<T> : ScriptableObject, IInventory<T> where T : IItem
     {

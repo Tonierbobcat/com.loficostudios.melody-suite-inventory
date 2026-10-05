@@ -1,6 +1,6 @@
 {
     "name": "InventorySystem",
-    "rootNamespace": "",
+    "rootNamespace": "MelodySuite.Inventory.Runtime",
     "references": [
         "GUID:af952bcd32b35e095beced13e1c12f36"
     ],

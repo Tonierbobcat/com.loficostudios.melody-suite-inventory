@@ -1,4 +1,4 @@
-namespace Inventory.Runtime
+namespace MelodySuite.Inventory.Runtime
 {
     public class ItemInventory : Inventory<ItemInventoryData, ItemInstance>
     {
