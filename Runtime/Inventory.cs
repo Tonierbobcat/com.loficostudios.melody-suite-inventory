@@ -1,11 +1,13 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using MelodySuite.Core.Runtime;
 using UnityEngine;
 
 namespace MelodySuite.Inventory.Runtime
 {
     public abstract class Inventory<T, TI> : MonoBehaviour, IInventory<TI>
-        where T : AbstractInventoryData<TI>
+        where T : InventoryData<TI>
         where TI : IItem
     {
         [SerializeField]
@@ -79,6 +81,16 @@ namespace MelodySuite.Inventory.Runtime
         public void RemoveItem(TI item, int amount)
         {
             m_inventoryData.RemoveItem(item, amount);
+        }
+
+        public IEnumerator<IReadOnlyInventorySlot<TI>> GetEnumerator()
+        {
+            return m_inventoryData.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }

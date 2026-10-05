@@ -1,11 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 namespace MelodySuite.Inventory.Runtime
 {
-    public abstract class AbstractInventoryData<T> : ScriptableObject, IInventory<T> where T : IItem
+    public abstract class InventoryData<T> : ScriptableObject, IInventory<T> where T : IItem
     {
         public List<InventorySlot<T>> slots = new();
         public InventoryType inventoryType;
@@ -16,13 +17,85 @@ namespace MelodySuite.Inventory.Runtime
         public event Action<int> OnSlotUpdated;
         public event Action<int> OnSlotRemoved;
         public event Action<int> OnSlotAdded;
+
+        public IReadOnlyInventorySlot<T> GetSlotAt(int i)
+        {
+            return slots[i];
+        }
+        
+        public bool HasItem(T item, int amount = 1)
+        {
+            var total = 0;
+            foreach (var slot in slots)
+            {
+                if (!slot.IsEmpty && EqualityComparer<T>.Default.Equals(slot.Item, item))
+                {
+                    total += slot.Amount;
+                }
+            }
+            return total >= amount;
+        }
+        
+        public void Set(InventoryType type, List<InventorySlot<T>> s)
+        {
+            
+            inventoryType = type;
+            slots = s;
+            
+            switch (inventoryType)
+            {
+                case InventoryType.Preallocated:
+                {
+                    while (slots.Count > maxSize)
+                    {
+                        slots.RemoveAt(slots.Count - 1);
+                    }
+
+                    while (slots.Count < maxSize)
+                    {
+                        slots.Add(new InventorySlot<T>());
+                    }
+
+                    break;
+                }
+                case InventoryType.Dynamic or InventoryType.Weighted:
+                    slots.RemoveAll(i => i == null || i.IsEmpty);
+                    break;
+            }
+        }
+
+        public List<IReadOnlyInventorySlot<T>> GetSlots(T item)
+        {
+            List<IReadOnlyInventorySlot<T>> result = new List<IReadOnlyInventorySlot<T>>();
+            foreach (var slot in slots)
+            {
+                if (!slot.IsEmpty && EqualityComparer<T>.Default.Equals(slot.Item, item))
+                {
+                    result.Add(slot);
+                }
+            }
+            return result;
+        }
+        
+        public IReadOnlyInventorySlot<T> GetFirstSlot(T item)
+        {
+            foreach (var slot in slots)
+            {
+                if (!slot.IsEmpty && EqualityComparer<T>.Default.Equals(slot.Item, item))
+                {
+                    return slot;
+                }
+            }
+
+            return null;
+        }
         
         // public bool allowAddingItemsWhileOverEncumbered = true;
         
         public float TotalWeight =>
             slots.Sum(slot =>
-                slot is { item: IWeighted weighted }
-                    ? weighted.Weight * slot.amount
+                slot is { Item: IWeighted weighted }
+                    ? weighted.Weight * slot.Amount
                     : 0f);
 
         private void OnValidate()
@@ -51,7 +124,7 @@ namespace MelodySuite.Inventory.Runtime
 
             return TotalWeight + weighted.Weight * amount <= maxWeight;
         }
-
+        
         public void RemoveItem(T item, int amount = 1)
         {
             if (amount <= 0)
@@ -65,8 +138,8 @@ namespace MelodySuite.Inventory.Runtime
             {
                 var slot = slots[i];
                 if (slot != null &&
-                    !slot.IsEmpty() &&
-                    EqualityComparer<T>.Default.Equals(slot.item, item))
+                    !slot.IsEmpty &&
+                    EqualityComparer<T>.Default.Equals(slot.Item, item))
                 {
                     existing = slot;
                     slotIndex = i;
@@ -77,9 +150,9 @@ namespace MelodySuite.Inventory.Runtime
             if (existing == null)
                 throw new InvalidOperationException();
             
-            existing.amount -= amount;
+            existing.Remove(amount);
 
-            if (existing.amount > 0)
+            if (existing.Amount > 0)
                 return;
             
             switch (inventoryType)
@@ -90,8 +163,7 @@ namespace MelodySuite.Inventory.Runtime
                     OnSlotRemoved?.Invoke(slotIndex);
                     break;
                 case InventoryType.Preallocated:
-                    existing.item = default;
-                    existing.amount = 0;
+                    existing.Clear();
                     OnSlotUpdated?.Invoke(slotIndex);
                     break;
                 default:
@@ -112,8 +184,8 @@ namespace MelodySuite.Inventory.Runtime
             {
                 var slot = slots[i];
                 if (slot != null &&
-                    !slot.IsEmpty() &&
-                    EqualityComparer<T>.Default.Equals(slot.item, item))
+                    !slot.IsEmpty &&
+                    EqualityComparer<T>.Default.Equals(slot.Item, item))
                 {
                     existing = slot;
                     slotIndex = i;
@@ -128,7 +200,7 @@ namespace MelodySuite.Inventory.Runtime
                     return false;
                 }
          
-                existing.amount += amount;
+                existing.Add(amount);
                 OnSlotUpdated?.Invoke(slotIndex);
                 return true;
             }
@@ -150,11 +222,9 @@ namespace MelodySuite.Inventory.Runtime
             if (slots.Count >= maxSize)
                 return false;
             var slotIndex = slots.Count;
-            slots.Add(new InventorySlot<T>()
-            {
-                item = item,
-                amount = amount,
-            });
+            var slot = new InventorySlot<T>();
+            slot.Set(item, amount);
+            slots.Add(slot);
             OnSlotAdded?.Invoke(slotIndex);
             return true;
         }
@@ -167,11 +237,9 @@ namespace MelodySuite.Inventory.Runtime
                 return false;
 
             var slotIndex = slots.Count;
-            slots.Add(new InventorySlot<T>()
-            {
-                item = item,
-                amount = amount,
-            });
+            var slot = new InventorySlot<T>();
+            slot.Set(item, amount);
+            slots.Add(slot);
             OnSlotAdded?.Invoke(slotIndex);
             return true;
         }
@@ -183,7 +251,7 @@ namespace MelodySuite.Inventory.Runtime
             for (var i = 0; i < slots.Count; i++)
             {
                 var inventorySlot = slots[i];
-                if (inventorySlot.IsEmpty())
+                if (inventorySlot.IsEmpty)
                 {
                     empty = inventorySlot;
                     slotIndex = i;
@@ -196,8 +264,7 @@ namespace MelodySuite.Inventory.Runtime
                 return false;
             }
 
-            empty.item = item;
-            empty.amount = amount;
+            empty.Set(item, amount);
             OnSlotUpdated?.Invoke(slotIndex);
             return true;
         }
@@ -205,7 +272,7 @@ namespace MelodySuite.Inventory.Runtime
         private void Awake()
         {
             if (inventoryType is InventoryType.Dynamic or InventoryType.Weighted)
-                slots.RemoveAll(i => i == null || i.item == null);
+                slots.RemoveAll(i => i == null || i.IsEmpty);
 
             // if (!allowAddingItemsWhileOverEncumbered)
             // {
@@ -219,17 +286,70 @@ namespace MelodySuite.Inventory.Runtime
 
         private static bool ValidateSlot(InventorySlot<T> s)
         {
-            return s != null && !s.IsEmpty();
+            return s != null && !s.IsEmpty;
         }
-        
-    }
 
-    public interface IInventory<T> where T : IItem
+        public IEnumerator<IReadOnlyInventorySlot<T>> GetEnumerator()
+        {
+            return slots.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+    
+    public interface IInventory<T> : IEnumerable<IReadOnlyInventorySlot<T>> where T : IItem
     {
         public float TotalWeight { get; }
         public bool AddItem(T item, int amount = 1);
     }
 
+    public interface IReadOnlyInventorySlot<out T> where T : IItem
+    {
+        T Item { get; }
+        int Amount { get; }
+        bool IsEmpty { get; }
+    }
+    
+    [Serializable]
+    public class InventorySlot<T> : IReadOnlyInventorySlot<T> where T : IItem 
+    {
+        [SerializeField]
+        private T item;
+
+        [SerializeField]
+        private int amount;
+        
+        internal void Set(T item, int amount)
+        {
+            this.item = item;
+            this.amount = amount;
+        }
+
+        internal void Clear()
+        {
+            item = default;
+            amount = 0;
+        }
+
+        internal void Add(int amount)
+        {
+            this.amount += amount;
+        }
+
+        internal void Remove(int amount)
+        {
+            this.amount -= amount;
+        }
+        
+        public T Item => item;
+        public int Amount => amount;
+
+        public bool IsEmpty => item == null || !item.IsValid || amount <= 0;
+    }
+    
     public interface IItem
     {
         bool IsValid { get; }
@@ -247,15 +367,5 @@ namespace MelodySuite.Inventory.Runtime
         Weighted
     }
     
-    [Serializable]
-    public class InventorySlot<T> where T : IItem
-    {
-        public T item;
-        public int amount;
 
-        public bool IsEmpty()
-        {
-            return item == null || !item.IsValid || amount <= 0;
-        }
-    }
 }
